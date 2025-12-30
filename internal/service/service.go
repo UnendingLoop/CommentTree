@@ -1,0 +1,173 @@
+// Package service provides business-logic for the app
+package service
+
+import (
+	"context"
+	"errors"
+	"log"
+	"strings"
+
+	"commentTree/internal/model"
+	"commentTree/internal/repository"
+)
+
+var (
+	ErrCommon500      error = errors.New("something went wrong. Try again later") // 500
+	ErrIncorrectQuery error = errors.New("incorrect query parameters")            // 400
+	ErrParentNotFound error = errors.New("specified parent comment ID not found") // 404
+	ErrParentDeleted  error = errors.New("specified parent ID is deleted")        // 422
+	ErrIncorrectID    error = errors.New("incorrect comment ID")                  // 422
+)
+
+type CommentService interface {
+	CreateComment(ctx context.Context, comment *model.Comment) (*model.Comment, error)
+	GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]model.Comment, error)
+	GetChildren(ctx context.Context, id int) ([]model.Comment, error)
+	DeleteCommentByID(ctx context.Context, id int, isSoftDelete bool) error
+	RunCommentSearchQuery(ctx context.Context, query string) ([]model.Comment, error)
+}
+
+type CService struct {
+	repo repository.CommentRepository
+}
+
+func NewCommentService(commentRep repository.CommentRepository) CommentService {
+	return &CService{repo: commentRep}
+}
+
+func (c CService) CreateComment(ctx context.Context, comment *model.Comment) (*model.Comment, error) {
+	// если указан родитель, проверяем его в базе
+	if comment.ParentID != nil {
+		parent, err := c.repo.GetCommentByID(ctx, *comment.ParentID)
+		if err != nil {
+			switch {
+			case errors.Is(err, repository.ErrCommentNotFound):
+				return nil, ErrParentNotFound
+			default:
+				return nil, ErrCommon500
+			}
+		}
+
+		if parent.DeletedAt != nil { // оставлять коммент мягко удаленному родителю запрещено
+			return nil, ErrParentDeleted
+		}
+	}
+
+	if err := c.repo.Create(ctx, comment); err != nil {
+		log.Printf("Failed to create new comment: %v", err)
+		return nil, ErrCommon500
+	}
+
+	return comment, nil
+}
+
+func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]model.Comment, error) {
+	validateRequest(req)
+	offset := (req.Page - 1) * req.Limit
+
+	res, err := c.repo.GetAllRoot(ctx, req.Limit, offset, req.Sort, req.Order)
+	if err != nil {
+		log.Printf("Failed to fetch all root comments from DB: %v", err)
+		return nil, ErrCommon500
+	}
+
+	return res, nil
+}
+
+func (c CService) GetChildren(ctx context.Context, id int) ([]model.Comment, error) {
+	if id <= 0 {
+		return nil, ErrIncorrectID
+	}
+	// проверяем существует ли такой родитель
+	_, err := c.repo.GetCommentByID(ctx, id)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrCommentNotFound):
+			return nil, ErrParentNotFound
+		default:
+			return nil, ErrCommon500
+		}
+	}
+
+	res, err := c.repo.GetChildrenByID(ctx, id)
+	if err != nil {
+		log.Printf("Failed to fetch children for comment %q from DB: %v", id, err)
+		return nil, ErrCommon500
+	}
+
+	return res, nil
+}
+
+func (c CService) DeleteCommentByID(ctx context.Context, id int, isSoftDelete bool) error {
+	if id <= 0 {
+		return ErrIncorrectID
+	}
+	switch isSoftDelete {
+	case true:
+		if err := c.repo.MarkAsDeletedByID(ctx, id); err != nil {
+			log.Printf("Failed to mark comment as deleted: %v", err)
+			return ErrCommon500
+		}
+	default:
+		if err := c.repo.DeleteByID(ctx, id); err != nil {
+			log.Printf("Failed to delete comment: %v", err)
+			return ErrCommon500
+		}
+	}
+	return nil
+}
+
+func (c CService) RunCommentSearchQuery(ctx context.Context, query string) ([]model.Comment, error) {
+	if query == "" {
+		return nil, nil
+	}
+
+	res, err := c.repo.RunSearchQuery(ctx, query)
+	if err != nil {
+		log.Printf("Failed to run search query in DB: %v", err)
+		return nil, ErrCommon500
+	}
+	return res, nil
+}
+
+func validateRequest(req *model.RootRequest) {
+	// Обрабатываем пустые значения, присваиваем дефолты если надо
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 30
+	}
+	if req.Sort == "" {
+		req.Sort = model.ByCreated
+	}
+	if req.Order == "" {
+		req.Order = model.OrderDESC
+	}
+
+	// Валидируем непустое поле типа сортировки
+	req.Sort = strings.ToLower(req.Sort)
+	req.Sort = strings.TrimSpace(req.Sort)
+	switch {
+	case strings.Contains(model.ByAuthor, req.Sort):
+		req.Sort = "author"
+	case strings.Contains(model.ByContent, req.Sort):
+		req.Sort = "content"
+	case strings.Contains(model.ByCreated, req.Sort):
+		req.Sort = "created_at"
+	default:
+		req.Sort = "created_at" // по дефолту ставим сортировку по времени создания
+	}
+
+	// Валадируем непустой порядок
+	req.Order = strings.ToLower(req.Order)
+	req.Order = strings.TrimSpace(req.Order)
+	switch {
+	case strings.Contains(model.OrderASC, req.Order):
+		req.Order = "ASC"
+	case strings.Contains(model.OrderDESC, req.Order):
+		req.Order = "DESC"
+	default:
+		req.Order = "ASC"
+	}
+}
