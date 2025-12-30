@@ -2,9 +2,11 @@
 package api
 
 import (
+	"errors"
 	"strconv"
 
 	"commentTree/internal/model"
+	"commentTree/internal/repository"
 	"commentTree/internal/service"
 
 	"github.com/wb-go/wbf/ginext"
@@ -23,7 +25,7 @@ func (h CommentsHandler) SimplePinger(ctx *ginext.Context) {
 }
 
 func (h CommentsHandler) Create(ctx *ginext.Context) {
-	var newComment model.Comment
+	var newComment service.APPComment
 
 	if err := ctx.BindJSON(&newComment); err != nil {
 		ctx.JSON(400, map[string]string{"error": err.Error()})
@@ -56,7 +58,7 @@ func (h CommentsHandler) GetAllRootComments(ctx *ginext.Context) {
 	ctx.JSON(200, res)
 }
 
-func (h CommentsHandler) GetChildrenComments(ctx *ginext.Context) {
+func (h CommentsHandler) GetCommentWithChildren(ctx *ginext.Context) {
 	idRaw := ctx.Param("id")
 	id, err := strconv.Atoi(idRaw)
 	if err != nil {
@@ -64,7 +66,7 @@ func (h CommentsHandler) GetChildrenComments(ctx *ginext.Context) {
 		return
 	}
 
-	res, err := h.Service.GetChildren(ctx.Request.Context(), id)
+	res, err := h.Service.GetCommentWithChildren(ctx.Request.Context(), id)
 	if err != nil {
 		ctx.JSON(errorCodeDefiner(err), map[string]string{"error": err.Error()})
 		return
@@ -117,6 +119,20 @@ func (h CommentsHandler) RunSearch(ctx *ginext.Context) {
 }
 
 func errorCodeDefiner(err error) int {
-	// пока нет ошибок в слое сервиса - допишу позже
-	return 0
+	switch {
+	case errors.Is(err, service.ErrCommon500):
+		return 500
+	case errors.Is(err, service.ErrIncorrectQuery):
+		return 400
+	case errors.Is(err, service.ErrParentNotFound):
+		return 404
+	case errors.Is(err, service.ErrParentDeleted):
+		return 422
+	case errors.Is(err, service.ErrIncorrectID):
+		return 400
+	case errors.Is(err, repository.ErrCommentNotFound):
+		return 404
+	}
+
+	return 500
 }

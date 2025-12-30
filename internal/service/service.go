@@ -20,11 +20,11 @@ var (
 )
 
 type CommentService interface {
-	CreateComment(ctx context.Context, comment *model.Comment) (*model.Comment, error)
-	GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]model.Comment, error)
-	GetChildren(ctx context.Context, id int) ([]model.Comment, error)
+	CreateComment(ctx context.Context, comment *APPComment) (*APPComment, error)
+	GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]APPComment, error)
+	GetCommentWithChildren(ctx context.Context, id int) ([]APPComment, error)
 	DeleteCommentByID(ctx context.Context, id int, isSoftDelete bool) error
-	RunCommentSearchQuery(ctx context.Context, query string) ([]model.Comment, error)
+	RunCommentSearchQuery(ctx context.Context, query string) ([]APPComment, error)
 }
 
 type CService struct {
@@ -35,7 +35,7 @@ func NewCommentService(commentRep repository.CommentRepository) CommentService {
 	return &CService{repo: commentRep}
 }
 
-func (c CService) CreateComment(ctx context.Context, comment *model.Comment) (*model.Comment, error) {
+func (c CService) CreateComment(ctx context.Context, comment *APPComment) (*APPComment, error) {
 	// если указан родитель, проверяем его в базе
 	if comment.ParentID != nil {
 		parent, err := c.repo.GetCommentByID(ctx, *comment.ParentID)
@@ -53,7 +53,7 @@ func (c CService) CreateComment(ctx context.Context, comment *model.Comment) (*m
 		}
 	}
 
-	if err := c.repo.Create(ctx, comment); err != nil {
+	if err := c.repo.Create(ctx, convertToDBComment(comment)); err != nil {
 		log.Printf("Failed to create new comment: %v", err)
 		return nil, ErrCommon500
 	}
@@ -61,7 +61,7 @@ func (c CService) CreateComment(ctx context.Context, comment *model.Comment) (*m
 	return comment, nil
 }
 
-func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]model.Comment, error) {
+func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]APPComment, error) {
 	validateRequest(req)
 	offset := (req.Page - 1) * req.Limit
 
@@ -71,10 +71,10 @@ func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest
 		return nil, ErrCommon500
 	}
 
-	return res, nil
+	return bulkConvertToAPPComments(res), nil
 }
 
-func (c CService) GetChildren(ctx context.Context, id int) ([]model.Comment, error) {
+func (c CService) GetCommentWithChildren(ctx context.Context, id int) ([]APPComment, error) {
 	if id <= 0 {
 		return nil, ErrIncorrectID
 	}
@@ -89,13 +89,13 @@ func (c CService) GetChildren(ctx context.Context, id int) ([]model.Comment, err
 		}
 	}
 
-	res, err := c.repo.GetChildrenByID(ctx, id)
+	res, err := c.repo.GetCommentWithChildrenByID(ctx, id)
 	if err != nil {
 		log.Printf("Failed to fetch children for comment %q from DB: %v", id, err)
 		return nil, ErrCommon500
 	}
 
-	return res, nil
+	return compileToAPPCommentTree(res, false, id), nil
 }
 
 func (c CService) DeleteCommentByID(ctx context.Context, id int, isSoftDelete bool) error {
@@ -117,7 +117,7 @@ func (c CService) DeleteCommentByID(ctx context.Context, id int, isSoftDelete bo
 	return nil
 }
 
-func (c CService) RunCommentSearchQuery(ctx context.Context, query string) ([]model.Comment, error) {
+func (c CService) RunCommentSearchQuery(ctx context.Context, query string) ([]APPComment, error) {
 	if query == "" {
 		return nil, nil
 	}
@@ -127,7 +127,7 @@ func (c CService) RunCommentSearchQuery(ctx context.Context, query string) ([]mo
 		log.Printf("Failed to run search query in DB: %v", err)
 		return nil, ErrCommon500
 	}
-	return res, nil
+	return bulkConvertToAPPComments(res), nil
 }
 
 func validateRequest(req *model.RootRequest) {

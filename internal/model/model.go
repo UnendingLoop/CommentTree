@@ -1,4 +1,4 @@
-// Package model provides data structures for the whole application commentTree
+// Package model provides data structures for repository layer DB-interaction
 package model
 
 import "time"
@@ -11,13 +11,13 @@ const (
 	OrderDESC = "descending"
 )
 
-type Comment struct {
-	ID        int        `json:"id,omitempty"`
-	ParentID  *int       `json:"parent_id,omitempty"`
-	Text      string     `json:"content"`
-	CreatedAt time.Time  `json:"created_at,omitempty"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	Author    string     `json:"author,omitempty"`
+type DBComment struct {
+	ID        int
+	ParentID  *int
+	Text      string
+	CreatedAt time.Time
+	DeletedAt *time.Time
+	Author    string
 }
 
 type RootRequest struct {

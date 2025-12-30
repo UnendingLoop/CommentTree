@@ -46,10 +46,10 @@ func StartApp() {
 	// Starting server
 	server := ginext.New("") // empty - debug mode, release - prod mode
 	server.GET("/ping", handlers.SimplePinger)
-	server.POST("/comments", handlers.Create)                 // создание (с указанием родительского)
-	server.GET("/comments", handlers.GetAllRootComments)      // получение всех корневых комментариев с ?page=1&limit=20&sort=created_at
-	server.GET("/comments/:id", handlers.GetChildrenComments) // получение всех вложенных у указанного id;
-	server.DELETE("/comments/:id", handlers.DeleteComment)    // удаление комментария и всех вложенных под ним
-	server.DELETE("/comments/search", handlers.RunSearch)     // поиск
+	server.POST("/comments", handlers.Create)                    // создание (с указанием родительского)
+	server.GET("/comments", handlers.GetAllRootComments)         // получение всех корневых комментариев с ?page=1&limit=20&sort=created_at
+	server.GET("/comments/:id", handlers.GetCommentWithChildren) // получение коммента с id и всех его детей
+	server.DELETE("/comments/:id", handlers.DeleteComment)       // удаление комментария и всех вложенных под ним
+	server.DELETE("/comments/search", handlers.RunSearch)        // поиск
 	server.Static("/web", "./internal/web")
 }
