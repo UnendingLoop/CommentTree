@@ -6,6 +6,8 @@ import (
 	"commentTree/internal/model"
 )
 
+var deletedComment string = "[Комментарий удалён]"
+
 type APPComment struct {
 	ID        int          `json:"id,omitempty"`
 	ParentID  *int         `json:"parent_id,omitempty"`
@@ -22,7 +24,7 @@ func convertToAPPComment(c *model.DBComment) *APPComment {
 
 	content := c.Text
 	if isDeleted {
-		content = "[Комментарий удалён]"
+		content = deletedComment
 	}
 
 	return &APPComment{

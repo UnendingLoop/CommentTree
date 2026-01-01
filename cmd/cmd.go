@@ -36,9 +36,7 @@ func StartApp() {
 	svc := service.NewCommentService(repo)
 
 	// Running DB migration
-	if err := repository.Migrate(dbConn.Master, "./migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %s", err)
-	}
+	repository.MigrateWithRetries(dbConn.Master, "./migrations", 5, 10*time.Second)
 
 	// Creating Handlers
 	handlers := api.NewCommentHandlers(svc)

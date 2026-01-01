@@ -47,6 +47,23 @@ func ConnectWithRetries(appConfig *config.Config, retryCount int, idleTime time.
 	return dbConn
 }
 
+func MigrateWithRetries(db *sql.DB, migrationsPath string, retries int, idle time.Duration) {
+	for i := range retries {
+		log.Printf("Migration try #%d...", i)
+		err := Migrate(db, migrationsPath)
+		if err == nil {
+			break
+		}
+		switch i {
+		case retries:
+			log.Fatalln("Out of retries. Exiting...")
+		default:
+			log.Printf("Migration try #%d was unsuccessful. Waiting %v before next try...", i, idle)
+			time.Sleep(idle)
+		}
+	}
+}
+
 func Migrate(db *sql.DB, migrationsPath string) error {
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
