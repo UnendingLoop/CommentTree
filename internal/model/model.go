@@ -20,6 +20,12 @@ type DBComment struct {
 	Author    string
 }
 
+type CommentCreateData struct {
+	ParentID *int   `json:"parent_id,omitempty"`
+	Text     string `json:"content"`
+	Author   string `json:"author,omitempty"`
+}
+
 type RootRequest struct {
 	Page  int    `form:"page"`
 	Limit int    `form:"limit"`

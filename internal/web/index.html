@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CommentTree</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .comment {
+            margin-top: 8px;
+            padding: 4px;
+        }
+
+        .comment[data-id] {
+            scroll-margin-top: 60px;
+        }
+
+        .deleted {
+            color: #888;
+            font-style: italic;
+        }
+
+        .children {
+            margin-left: 20px;
+            border-left: 2px solid #eee;
+            padding-left: 10px;
+            display: none;
+        }
+
+        .highlight {
+            background: #fff3cd;
+        }
+
+        .search-box {
+            margin-bottom: 12px;
+        }
+
+        button {
+            margin-right: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Комментарии</h2>
+
+    <div class="search-box">
+        <input id="searchInput" placeholder="Поиск..." />
+        <div id="searchResults"></div>
+    </div>
+
+    <form id="rootForm">
+        <textarea id="rootText" placeholder="Новый комментарий"></textarea><br>
+        <button type="submit">Добавить</button>
+    </form>
+
+    <div id="comments"></div>
+
+    <script>
+        let rootComments = [];
+
+        async function loadRoots() {
+            const res = await fetch('/comments');
+            rootComments = await res.json();
+            renderRoots();
+        }
+
+        function renderRoots() {
+            const container = document.getElementById('comments');
+            container.innerHTML = '';
+            rootComments.forEach(c => container.appendChild(renderComment(c)));
+        }
+
+        function renderComment(c) {
+            const div = document.createElement('div');
+            div.className = 'comment';
+            div.dataset.id = c.id;
+
+            const text = document.createElement('div');
+            text.textContent = c.content;
+            if (c.deleted) text.className = 'deleted';
+            div.appendChild(text);
+
+            if (c.children?.length) {
+                const toggle = document.createElement('button');
+                toggle.textContent = `▶ Показать ответы (${c.children.length})`;
+                const children = document.createElement('div');
+                children.className = 'children';
+
+                c.children
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .forEach(ch => children.appendChild(renderComment(ch)));
+
+                toggle.onclick = () => {
+                    const open = children.style.display === 'block';
+                    children.style.display = open ? 'none' : 'block';
+                    toggle.textContent = open
+                        ? `▶ Показать ответы (${c.children.length})`
+                        : '▼ Скрыть ответы';
+                };
+
+                div.appendChild(toggle);
+                div.appendChild(children);
+            }
+
+            if (c.replyable) {
+                const btn = document.createElement('button');
+                btn.textContent = 'Ответить';
+                btn.onclick = () => showReplyForm(div, c.id);
+                div.appendChild(btn);
+            }
+
+            const soft = document.createElement('button');
+            soft.textContent = 'Soft delete';
+            soft.onclick = () => deleteComment(c.id, 'soft');
+            div.appendChild(soft);
+
+            const hard = document.createElement('button');
+            hard.textContent = 'Hard delete';
+            hard.onclick = () => deleteComment(c.id, 'hard');
+            div.appendChild(hard);
+
+            return div;
+        }
+
+        function showReplyForm(container, parentID) {
+            const form = document.createElement('form');
+            const ta = document.createElement('textarea');
+            const btn = document.createElement('button');
+            btn.textContent = 'Отправить';
+            form.appendChild(ta);
+            form.appendChild(btn);
+
+            form.onsubmit = async e => {
+                e.preventDefault();
+                await fetch('/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_id: parentID, content: ta.value })
+                });
+                loadRoots();
+            };
+
+            container.appendChild(form);
+        }
+
+        async function deleteComment(id, mode) {
+            await fetch(`/comments/${id}?mode=${mode}`, { method: 'DELETE' });
+            loadRoots();
+        }
+
+        // --- SEARCH ---
+        document.getElementById('searchInput').oninput = async e => {
+            const q = e.target.value;
+            const box = document.getElementById('searchResults');
+            box.innerHTML = '';
+            if (!q) return;
+
+            const res = await fetch(`/comments/search?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+
+            data.forEach(c => {
+                const div = document.createElement('div');
+                div.textContent = c.content;
+                div.onclick = () => focusComment(c.id);
+                box.appendChild(div);
+            });
+        };
+
+        function focusComment(id) {
+            document.getElementById('searchResults').innerHTML = '';
+            const el = document.querySelector(`[data-id="${id}"]`);
+            if (!el) return;
+
+            // раскрываем родителей
+            let p = el.parentElement;
+            while (p) {
+                if (p.classList.contains('children')) {
+                    p.style.display = 'block';
+                }
+                p = p.parentElement;
+            }
+
+            el.classList.add('highlight');
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setTimeout(() => el.classList.remove('highlight'), 2000);
+        }
+
+        document.getElementById('rootForm').onsubmit = async e => {
+            e.preventDefault();
+            await fetch('/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: rootText.value })
+            });
+            rootText.value = '';
+            loadRoots();
+        };
+
+        loadRoots();
+    </script>
+</body>
+
+</html>

@@ -5,22 +5,24 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"commentTree/internal/model"
 )
 
-func (p PostgresRepo) Create(ctx context.Context, n *model.DBComment) error {
+func (p PostgresRepo) Create(ctx context.Context, n *model.CommentCreateData) (*model.DBComment, error) {
 	query := `INSERT INTO comments (cid, pid, content, created_at, author)
 	VALUES (DEFAULT, $1, $2, DEFAULT, $3) 
-	RETURNING cid, created_at`
-	if err := p.db.QueryRowContext(ctx, query, n.ParentID, n.Text, n.Author).Scan(&n.ID, &n.CreatedAt); err != nil {
-		return err
+	RETURNING cid, pid, content, created_at, author`
+	res := model.DBComment{}
+	if err := p.db.QueryRowContext(ctx, query, n.ParentID, n.Text, n.Author).Scan(&res.ID, &res.ParentID, &res.Text, &res.CreatedAt, &res.Author); err != nil {
+		return nil, err
 	}
-	return nil
+	return &res, nil
 }
 
 func (p PostgresRepo) GetCommentByID(ctx context.Context, id int) (*model.DBComment, error) {
-	query := `SELECT (pid, content, created_at, deleted_at, author) FROM comments WHERE cid = $1`
+	query := `SELECT pid, content, created_at, deleted_at, author FROM comments WHERE cid = $1`
 	var comment model.DBComment
 	comment.ID = id
 
@@ -38,12 +40,11 @@ func (p PostgresRepo) GetCommentByID(ctx context.Context, id int) (*model.DBComm
 }
 
 func (p PostgresRepo) GetAllRoot(ctx context.Context, limit, offset int, sort, order string) ([]model.DBComment, error) {
-	query := fmt.Sprintf(`SELECT cid, content, created_at, deleted_at, author 
+	query := fmt.Sprintf(`SELECT cid, pid, content, created_at, deleted_at, author 
 	FROM comments
-	WHERE pid IS NULL 
 	ORDER BY %s %s 
-	LIMIT $3 
-	OFFSET $4`, sort, order)
+	LIMIT $1 
+	OFFSET $2`, sort, order)
 
 	rows, err := p.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
@@ -55,7 +56,7 @@ func (p PostgresRepo) GetAllRoot(ctx context.Context, limit, offset int, sort, o
 	comments := make([]model.DBComment, 0, limit)
 	for rows.Next() {
 		var c model.DBComment
-		if err := rows.Scan(&c.ID, &c.Text, &c.CreatedAt, &c.DeletedAt, &c.Author); err != nil {
+		if err := rows.Scan(&c.ID, &c.ParentID, &c.Text, &c.CreatedAt, &c.DeletedAt, &c.Author); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
@@ -114,7 +115,6 @@ func (p PostgresRepo) DeleteByID(ctx context.Context, id int) error {
     SELECT *
     FROM comments
     WHERE cid = $1
-      AND deleted_at IS NULL
 
     UNION ALL
 
@@ -143,9 +143,9 @@ func (p PostgresRepo) DeleteByID(ctx context.Context, id int) error {
 
 func (p PostgresRepo) MarkAsDeletedByID(ctx context.Context, id int) error {
 	query := `UPDATE comments
-	SET deleted_at = DEFAULT WHERE cid = $1`
+	SET deleted_at = $1 WHERE cid = $2`
 
-	row := p.db.QueryRowContext(ctx, query, id)
+	row := p.db.QueryRowContext(ctx, query, time.Now().UTC(), id)
 	if row.Err() != nil {
 		switch {
 		case errors.Is(row.Err(), sql.ErrNoRows):
@@ -158,11 +158,11 @@ func (p PostgresRepo) MarkAsDeletedByID(ctx context.Context, id int) error {
 }
 
 func (p PostgresRepo) RunSearchQuery(ctx context.Context, q string) ([]model.DBComment, error) {
-	query := `SELECT *,
+	query := `SELECT cid, pid, content, created_at, author,
 	ts_rank(content_tsv, websearch_to_tsquery('simple', $1)) AS rank
 	FROM comments
 	WHERE deleted_at IS NULL
-	AND content_tsv @@ websearch_to_tsquery('simple', $1)
+	AND content_tsv @@ websearch_to_tsquery('russian', $1)
 	ORDER BY rank DESC, created_at DESC;`
 	rows, err := p.db.QueryContext(ctx, query, q)
 	if err != nil {
@@ -174,8 +174,8 @@ func (p PostgresRepo) RunSearchQuery(ctx context.Context, q string) ([]model.DBC
 	comments := make([]model.DBComment, 0)
 	for rows.Next() {
 		var c model.DBComment
-		rank := ""
-		if err := rows.Scan(&c.ID, &c.ParentID, &c.Text, &c.CreatedAt, &c.DeletedAt, &c.Author, &rank); err != nil {
+		rank := 0.99
+		if err := rows.Scan(&c.ID, &c.ParentID, &c.Text, &c.CreatedAt, &c.Author, &rank); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)

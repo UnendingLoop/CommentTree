@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_comment
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: commentTree_dev
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: commentTree
+    env_file: .env
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    command: [ "./commentTree" ]

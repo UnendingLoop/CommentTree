@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS comments (
     pid INT NULL,
     content TEXT NOT NULL,
     content_tsv tsvector GENERATED ALWAYS AS (
-        to_tsvector('simple', content)
+        to_tsvector('russian', content)
     ) STORED,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,

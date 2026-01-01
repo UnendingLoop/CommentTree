@@ -25,7 +25,7 @@ func (h CommentsHandler) SimplePinger(ctx *ginext.Context) {
 }
 
 func (h CommentsHandler) Create(ctx *ginext.Context) {
-	var newComment service.APPComment
+	var newComment model.CommentCreateData
 
 	if err := ctx.BindJSON(&newComment); err != nil {
 		ctx.JSON(400, map[string]string{"error": err.Error()})
@@ -99,7 +99,7 @@ func (h CommentsHandler) DeleteComment(ctx *ginext.Context) {
 		return
 	}
 
-	ctx.Status(200)
+	ctx.Status(204)
 }
 
 func (h CommentsHandler) RunSearch(ctx *ginext.Context) {
@@ -127,7 +127,7 @@ func errorCodeDefiner(err error) int {
 	case errors.Is(err, service.ErrParentNotFound):
 		return 404
 	case errors.Is(err, service.ErrParentDeleted):
-		return 422
+		return 409
 	case errors.Is(err, service.ErrIncorrectID):
 		return 400
 	case errors.Is(err, repository.ErrCommentNotFound):

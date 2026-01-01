@@ -9,7 +9,7 @@ import (
 )
 
 type CommentRepository interface {
-	Create(ctx context.Context, n *model.DBComment) error
+	Create(ctx context.Context, n *model.CommentCreateData) (*model.DBComment, error)
 	GetAllRoot(ctx context.Context, limit, offset int, sort, order string) ([]model.DBComment, error)
 	DeleteByID(ctx context.Context, id int) error
 	GetCommentByID(ctx context.Context, id int) (*model.DBComment, error)
