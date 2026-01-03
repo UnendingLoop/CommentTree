@@ -4,10 +4,11 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"strings"
 
 	"commentTree/internal/model"
+	"commentTree/internal/mwlogger"
 	"commentTree/internal/repository"
 )
 
@@ -36,6 +37,7 @@ func NewCommentService(commentRep repository.CommentRepository) CommentService {
 }
 
 func (c CService) CreateComment(ctx context.Context, comment *model.CommentCreateData) (*APPComment, error) {
+	logger := mwlogger.LoggerFromContext(ctx)
 	// если указан родитель, проверяем его в базе
 	if comment.ParentID != nil {
 		parent, err := c.repo.GetCommentByID(ctx, *comment.ParentID)
@@ -44,7 +46,7 @@ func (c CService) CreateComment(ctx context.Context, comment *model.CommentCreat
 			case errors.Is(err, repository.ErrCommentNotFound):
 				return nil, ErrParentNotFound
 			default:
-				log.Printf("Failed to check parent before creating new comment in DB: %v", err)
+				logger.Error().Err(err).Msg("Failed to check parent before creating new comment in DB")
 				return nil, ErrCommon500
 			}
 		}
@@ -56,7 +58,7 @@ func (c CService) CreateComment(ctx context.Context, comment *model.CommentCreat
 
 	res, err := c.repo.Create(ctx, comment)
 	if err != nil {
-		log.Printf("Failed to create new comment: %v", err)
+		logger.Error().Err(err).Msg("Failed to create new comment")
 		return nil, ErrCommon500
 	}
 
@@ -64,12 +66,13 @@ func (c CService) CreateComment(ctx context.Context, comment *model.CommentCreat
 }
 
 func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest) ([]APPComment, error) {
+	logger := mwlogger.LoggerFromContext(ctx)
 	validateRequest(req)
 	offset := (req.Page - 1) * req.Limit
 
 	res, err := c.repo.GetAllRoot(ctx, req.Limit, offset, req.Sort, req.Order)
 	if err != nil {
-		log.Printf("Failed to fetch all root comments from DB: %v", err)
+		logger.Error().Err(err).Msg("Failed to fetch all root comments from DB")
 		return nil, ErrCommon500
 	}
 
@@ -77,6 +80,7 @@ func (c CService) GetAllRootComments(ctx context.Context, req *model.RootRequest
 }
 
 func (c CService) GetCommentWithChildren(ctx context.Context, id int) ([]APPComment, error) {
+	logger := mwlogger.LoggerFromContext(ctx)
 	if id <= 0 {
 		return nil, ErrIncorrectID
 	}
@@ -87,13 +91,14 @@ func (c CService) GetCommentWithChildren(ctx context.Context, id int) ([]APPComm
 		case errors.Is(err, repository.ErrCommentNotFound):
 			return nil, ErrParentNotFound
 		default:
+			logger.Error().Err(err).Msg("Failed to check parent before fetching its children")
 			return nil, ErrCommon500
 		}
 	}
 
 	res, err := c.repo.GetCommentWithChildrenByID(ctx, id)
 	if err != nil {
-		log.Printf("Failed to fetch children for comment %q from DB: %v", id, err)
+		logger.Error().Err(err).Msg(fmt.Sprintf("Failed to fetch children for comment %q from DB", id))
 		return nil, ErrCommon500
 	}
 
@@ -101,18 +106,33 @@ func (c CService) GetCommentWithChildren(ctx context.Context, id int) ([]APPComm
 }
 
 func (c CService) DeleteCommentByID(ctx context.Context, id int, isSoftDelete bool) error {
+	logger := mwlogger.LoggerFromContext(ctx)
 	if id <= 0 {
 		return ErrIncorrectID
 	}
+
+	// проверяем существует ли такой коммент
+	_, err := c.repo.GetCommentByID(ctx, id)
+	if err != nil {
+		switch {
+		case !errors.Is(err, repository.ErrCommentNotFound):
+			logger.Error().Err(err).Msg("Failed to check comment existence before deleting/hiding")
+			return ErrCommon500
+		default:
+			return err
+		}
+	}
+
+	// определяем режим удаления
 	switch isSoftDelete {
 	case true:
 		if err := c.repo.MarkAsDeletedByID(ctx, id); err != nil {
-			log.Printf("Failed to mark comment as deleted: %v", err)
+			logger.Error().Err(err).Msg("Failed to mark comment as deleted")
 			return ErrCommon500
 		}
 	default:
 		if err := c.repo.DeleteByID(ctx, id); err != nil {
-			log.Printf("Failed to delete comment: %v", err)
+			logger.Error().Err(err).Msg("Failed to delete comment")
 			return ErrCommon500
 		}
 	}
@@ -123,10 +143,11 @@ func (c CService) RunCommentSearchQuery(ctx context.Context, query string) ([]AP
 	if query == "" {
 		return nil, nil
 	}
+	logger := mwlogger.LoggerFromContext(ctx)
 
 	res, err := c.repo.RunSearchQuery(ctx, query)
 	if err != nil {
-		log.Printf("Failed to run search query in DB: %v", err)
+		logger.Error().Err(err).Msg("Failed to run search query in DB")
 		return nil, ErrCommon500
 	}
 	return convertSearchResults(res), nil

@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"commentTree/internal/api"
+	"commentTree/internal/mwlogger"
 	"commentTree/internal/repository"
 	"commentTree/internal/service"
 
 	"github.com/wb-go/wbf/config"
 	"github.com/wb-go/wbf/dbpg"
 	"github.com/wb-go/wbf/ginext"
+	"github.com/wb-go/wbf/zlog"
 )
 
 func StartApp() {
@@ -43,7 +45,7 @@ func StartApp() {
 	// Creating Handlers
 	handlers := api.NewCommentHandlers(svc)
 
-	// Configuring server
+	// Configuring engine
 	mode := appConfig.GetString("GIN_MODE")
 	engine := ginext.New(mode)
 
@@ -55,9 +57,18 @@ func StartApp() {
 	engine.GET("/comments/search", handlers.RunSearch)           // поиск
 	engine.Static("/web", "./internal/web")
 
+	// Configuring logger and mw
+	zlog.InitConsole()
+	err := zlog.SetLevel("info")
+	if err != nil {
+		log.Fatalf("Failed to init logger: %v", err)
+	}
+	loggedRouter := mwlogger.NewMWLogger(engine) // Wrapping engine into widdleware
+
+	// Setting up server
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: engine,
+		Handler: loggedRouter,
 	}
 
 	// Listening to interruptions through sontext
