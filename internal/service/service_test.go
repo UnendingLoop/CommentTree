@@ -194,6 +194,9 @@ func TestGetCommentWithChildren_OK(t *testing.T) {
 
 func TestDeleteComment_SoftDelete(t *testing.T) {
 	repo := &mockRepo{
+		getByIDFn: func(ctx context.Context, id int) (*model.DBComment, error) {
+			return &model.DBComment{ID: id}, nil // <- комментарий существует
+		},
 		markDeletedFn: func(ctx context.Context, id int) error {
 			return nil
 		},
@@ -202,12 +205,15 @@ func TestDeleteComment_SoftDelete(t *testing.T) {
 	svc := NewCommentService(repo)
 
 	if err := svc.DeleteCommentByID(context.Background(), 1, true); err != nil {
-		t.Fatalf("unexpected error")
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestDeleteComment_HardDelete(t *testing.T) {
 	repo := &mockRepo{
+		getByIDFn: func(ctx context.Context, id int) (*model.DBComment, error) {
+			return &model.DBComment{ID: id}, nil
+		},
 		deleteFn: func(ctx context.Context, id int) error {
 			return nil
 		},
@@ -216,7 +222,7 @@ func TestDeleteComment_HardDelete(t *testing.T) {
 	svc := NewCommentService(repo)
 
 	if err := svc.DeleteCommentByID(context.Background(), 1, false); err != nil {
-		t.Fatalf("unexpected error")
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
