@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"commentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/model"
 )
 
 func (p PostgresRepo) Create(ctx context.Context, n *model.CommentCreateData) (*model.DBComment, error) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"commentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/model"
 )
 
 func ptr[T any](v T) *T { return &v }

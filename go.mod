@@ -1,4 +1,4 @@
-module commentTree
+module github.com/UnendingLoop/CommentTree
 
 go 1.25.1
 

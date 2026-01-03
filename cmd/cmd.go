@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"commentTree/internal/api"
-	"commentTree/internal/mwlogger"
-	"commentTree/internal/repository"
-	"commentTree/internal/service"
+	"github.com/UnendingLoop/CommentTree/internal/api"
+	"github.com/UnendingLoop/CommentTree/internal/mwlogger"
+	"github.com/UnendingLoop/CommentTree/internal/repository"
+	"github.com/UnendingLoop/CommentTree/internal/service"
 
 	"github.com/wb-go/wbf/config"
 	"github.com/wb-go/wbf/dbpg"

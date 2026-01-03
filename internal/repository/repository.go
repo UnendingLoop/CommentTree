@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	"commentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/model"
 )
 
 type CommentRepository interface {

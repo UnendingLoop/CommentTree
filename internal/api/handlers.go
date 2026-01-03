@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strconv"
 
-	"commentTree/internal/model"
-	"commentTree/internal/repository"
-	"commentTree/internal/service"
+	"github.com/UnendingLoop/CommentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/repository"
+	"github.com/UnendingLoop/CommentTree/internal/service"
 
 	"github.com/wb-go/wbf/ginext"
 )

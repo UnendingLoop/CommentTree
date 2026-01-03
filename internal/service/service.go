@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"commentTree/internal/model"
-	"commentTree/internal/mwlogger"
-	"commentTree/internal/repository"
+	"github.com/UnendingLoop/CommentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/mwlogger"
+	"github.com/UnendingLoop/CommentTree/internal/repository"
 )
 
 var (

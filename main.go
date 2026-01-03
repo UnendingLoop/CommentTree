@@ -1,6 +1,6 @@
 package main
 
-import "commentTree/cmd"
+import "github.com/UnendingLoop/CommentTree/cmd"
 
 func main() {
 	cmd.StartApp()

@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"commentTree/internal/model"
-	"commentTree/internal/service"
+	"github.com/UnendingLoop/CommentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/wb-go/wbf/ginext"

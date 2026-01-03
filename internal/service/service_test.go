@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"commentTree/internal/model"
-	"commentTree/internal/repository"
+	"github.com/UnendingLoop/CommentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/repository"
 )
 
 type mockRepo struct {

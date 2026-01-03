@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	"commentTree/internal/model"
+	"github.com/UnendingLoop/CommentTree/internal/model"
 )
 
 var deletedComment string = "[Комментарий удалён]"
