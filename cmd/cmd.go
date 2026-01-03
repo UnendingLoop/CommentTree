@@ -48,9 +48,9 @@ func StartApp() {
 	engine := ginext.New(mode)
 
 	engine.GET("/ping", handlers.SimplePinger)
-	engine.POST("/comments", handlers.Create)                    // создание (с указанием родительского)
-	engine.GET("/comments", handlers.GetAllRootComments)         // получение всех корневых комментариев с поддержкой квери ?page=1&limit=20&sort=created_at&order=ascending
-	engine.GET("/comments/:id", handlers.GetCommentWithChildren) // получение коммента с id и всех его детей
+	engine.POST("/comments", handlers.Create)                    // создание комментария(с/без родителя)
+	engine.GET("/comments", handlers.GetAllRootComments)         // получение всех корневых комментариев с пагинацией и сортировкой через квери: ?page=1&limit=20&sort=created_at&order=ascending
+	engine.GET("/comments/:id", handlers.GetCommentWithChildren) // получение коммента по id и всех его детей
 	engine.DELETE("/comments/:id", handlers.DeleteComment)       // удаление комментария и всех вложенных под ним
 	engine.GET("/comments/search", handlers.RunSearch)           // поиск
 	engine.Static("/web", "./internal/web")
@@ -59,6 +59,10 @@ func StartApp() {
 		Addr:    ":8080",
 		Handler: engine,
 	}
+
+	// Listening to interruptions through sontext
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Server launch
 	go func() {
@@ -69,15 +73,14 @@ func StartApp() {
 			case errors.Is(err, http.ErrServerClosed):
 				log.Println("Server gracefully stopping...")
 			default:
-				log.Fatalf("Server stopped: %v", err)
+				log.Printf("Server stopped: %v", err)
+				stop()
 			}
 		}
 	}()
 
-	// Waiting for interruption to start Graceful shutdown
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
+	// Waiting for interruption to stop context to start Graceful shutdown
+	<-ctx.Done()
 
 	shutdown(srv, dbConn)
 	log.Println("Exiting application...")
